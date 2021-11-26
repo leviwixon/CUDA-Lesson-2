@@ -7,7 +7,6 @@
 #include <cuda.h>
 
 const int BLOCK_DIM = 4;   // used to set dimensions of a block (threads per block).
-const int GRID_DIM = 128;   // used to set the dimensions of a grid (blocks per grid).
 
 // Function meant for outputting the stats & info of the matricies. Inclusion of '__host__' is optional, but helps create visual
 // seperation between '__global__', '__device__', '__host__ __device', etc. For more info on execution space specifiers and how
@@ -143,9 +142,9 @@ int main()
     // Copy Host Side Matricies to Device Side
     cudaMemcpy(devMatrixA, matrixA, mem_size, cudaMemcpyHostToDevice);
 
-    // Operate on Device Side Matricies in parallel
+    // Set dimensions for the device work done later
     dim3 threads(BLOCK_DIM, BLOCK_DIM);   
-    dim3 grid(m/BLOCK_DIM, n/BLOCK_DIM, 1);    // 
+    dim3 grid(m/BLOCK_DIM, n/BLOCK_DIM, 1); 
 
     // Cuda timing via events documented at https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#using-cuda-gpu-timers
     cudaEventCreate(&start);
