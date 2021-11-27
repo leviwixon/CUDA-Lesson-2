@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
-#include <math.h>
+
 
 const int BLOCK_DIM = 16;   // used to set dimensions of a block (threads per block). Typically best as 2^N
 
