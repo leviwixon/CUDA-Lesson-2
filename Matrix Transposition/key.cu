@@ -116,21 +116,17 @@ int main()
     cudaMemcpy(devMatrixA, matrixA, mem_size, cudaMemcpyHostToDevice);
 
     // Set dimensions for the device work done later
-    float xDim, yDim;
+    double xDim, yDim;
     dim3 threads(BLOCK_DIM, BLOCK_DIM);   
-    if (m % BLOCK_DIM != 0) {
-        xDim = ceil((m % BLOCK_DIM));
-    }
-    if (n % BLOCK_DIM != 0) {
-        yDim = ceil((n % BLOCK_DIM));
-    }
-    dim3 grid(xDim, yDim, 1);
+    xDim = (m + (BLOCK_DIM - 1)) / BLOCK_DIM;   // Just round up on division.
+    yDim = (n + (BLOCK_DIM - 1)) / BLOCK_DIM;
+    dim3 grid(yDim, xDim, 1);
+
     // Cuda timing via events documented at https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#using-cuda-gpu-timers
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
     // Run many iterations to make tangible times more likely in small matrix cases (small being relative to the amount of possible threads).
-    printf("DIMENSIONS %d %d", xDim, yDim);
     for (int i = 0; i < totalIterations; i++) {
         naive_parallel_transposition <<<grid, threads >>> (devMatrixA, devMatrixB, m, n); // ignore "expected an expression" error if it appears. It is a false flag by intellisense.
     }
@@ -143,9 +139,7 @@ int main()
     avgTime = elapsedTime / totalIterations;
 
     // Copy result in from Device and print out statistics for the run.
-    cudaMemcpy(matrixB, devMatrixB, mem_size, cudaMemcpyDeviceToHost);
-    formattedPrint(matrixB, elapsedTime, avgTime, totalIterations, n, m);
-    
+    cudaMemcpy(matrixB, devMatrixB, mem_size, cudaMemcpyDeviceToHost);    
     if (testTransposition(matrixA, matrixB, m, n)) {
         //formattedPrint(matrixB, elapsedTime, avgTime, totalIterations, n, m);
         printf("SUCCESS!\n");
