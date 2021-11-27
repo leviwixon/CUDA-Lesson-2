@@ -5,8 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include <math.h>
 
-const int BLOCK_DIM = 4;   // used to set dimensions of a block (threads per block).
+const int BLOCK_DIM = 16;   // used to set dimensions of a block (threads per block). Typically best as 2^N
 
 // Function meant for outputting the stats & info of the matricies. Inclusion of '__host__' is optional, but helps create visual
 // seperation between '__global__', '__device__', '__host__ __device', etc. For more info on execution space specifiers and how
@@ -29,7 +30,6 @@ bool testTransposition(int* originalMatrix, int* TMatrix, unsigned int originalR
     for (unsigned int i = 0; i < originalRows; i++) {
         for (unsigned int j = 0; j < originalCols; j++) {
             if (originalMatrix[i * originalCols + j] != TMatrix[j * originalRows + i]) {
-                //printf("Failed on index %d - %d and %d - %d\n", i * originalCols, j, j * originalRows, i);
                 return false;
             }
         }
@@ -37,53 +37,26 @@ bool testTransposition(int* originalMatrix, int* TMatrix, unsigned int originalR
     return true;
 }
 
-/* This function was taken from https ://github.com/JonathanWatkins/CUDA/blob/master/NvidiaCourse/Exercises/transpose/transpose.cu
-** and provides a significantly faster overall transposition time when dealing with larger array sizes. The accompanying comments
-** provided for the transpose function in Jonathan Watkins' transpose.cu file provide some elaboration as to why this is done, and
-** where the benefit comes from. For a simpler, albeit slower implementation of matrix transposition, refer to the 'transpose_naive'
-** function within the github link, or the countless other naive tranpositions available on the internet. You could design a function
-** which is completed with less threads by picking up where the last thread left off, however CUDA provides such a stupidly high upper
-** limit, that it really isn't necessary on the hardware and situation we have. It is theoretically possible to have a grid of blocks
-** with dimension 65,535 * 65,535 * 65,535 with 1,024 per thread, or about 288 quadrillion threads. Obviously, most don't have the req
-** hardware for that, but it gives a good idea of just how much we can throw at a given task. Sources for the math on upper limit in CUDA
-** can be found at https://stackoverflow.com/questions/12078080/max-number-of-threads-which-can-be-initiated-in-a-single-cuda-kernel, but
-** is also subject to the GPU's compute capability, as seen in https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#features-and-technical-specifications
-*/
-__global__ 
-void gpu_parallel_transpose_blocks(int* odata, int* idata, int width, int height) {
-    __shared__ int block[BLOCK_DIM][BLOCK_DIM + 1];
-    // read the matrix tile into shared memory
-    // load one element per thread from device memory (idata) and store it
-    // in transposed order in block[][]
-    unsigned int xIndex = blockIdx.x * BLOCK_DIM + threadIdx.x;
-    unsigned int yIndex = blockIdx.y * BLOCK_DIM + threadIdx.y;
-    if ((xIndex < width) && (yIndex < height))
-    {
-        unsigned int index_in = yIndex * width + xIndex;
-        block[threadIdx.y][threadIdx.x] = idata[index_in];
-    }
-
-    // synchronise to ensure all writes to block[][] have completed
-    __syncthreads();    // False error by intellisense is possible here. If you see "identifier '__syncthreads()' is undefined", it likely will still run. 
-
-    // write the transposed matrix tile to global memory (odata) in linear order
-    xIndex = blockIdx.y * BLOCK_DIM + threadIdx.x;
-    yIndex = blockIdx.x * BLOCK_DIM + threadIdx.y;
-    if ((xIndex < height) && (yIndex < width))
-    {
-        unsigned int index_out = yIndex * height + xIndex;
-        odata[index_out] = block[threadIdx.x][threadIdx.y];
+__global__
+void naive_parallel_transposition(int* matrix, int* Tmatrix, int rows, int cols) {
+    // essential becomes "(width of array) * (array number) + (array index)". This allows roll-over (e.g. an array of 8 threads with 5
+    // blocks will reach a 9th element and jump to the new array, but record that the width of the previous has been traversed, or more
+    // succintly, we have traverse (width * (total num of array traversed)) elements/threads).
+    int xCoord = blockDim.x * blockIdx.x + threadIdx.x;
+    int yCoord = blockDim.y * blockIdx.y + threadIdx.y;
+    if (xCoord < cols && yCoord < rows) {       // Its possible to end up with some straggler threads that would go beyond the bounds needed, so we cull them with this
+        // 1D writing of typicaly 2D array access (think of it as row == column_size * row_index (e.g coordinates in an 8x8 array [6][7] == [(6 * 8) + 7] == [48 + 7] == [55])
+        Tmatrix[yCoord + rows * xCoord] = matrix[xCoord + cols * yCoord];  
     }
 }
 
 int main()
 {
     srand(4);   // static seed for testing!
-
     // Timing variables
     cudaEvent_t start, stop;
     float elapsedTime, avgTime;
-    int totalIterations = 10000;
+    int totalIterations = 1;
 
     int dimFlag = 0;
     unsigned int m, n;   
@@ -143,16 +116,23 @@ int main()
     cudaMemcpy(devMatrixA, matrixA, mem_size, cudaMemcpyHostToDevice);
 
     // Set dimensions for the device work done later
+    float xDim, yDim;
     dim3 threads(BLOCK_DIM, BLOCK_DIM);   
-    dim3 grid(m/BLOCK_DIM, n/BLOCK_DIM, 1); 
-
+    if (m % BLOCK_DIM != 0) {
+        xDim = ceil((m % BLOCK_DIM));
+    }
+    if (n % BLOCK_DIM != 0) {
+        yDim = ceil((n % BLOCK_DIM));
+    }
+    dim3 grid(xDim, yDim, 1);
     // Cuda timing via events documented at https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#using-cuda-gpu-timers
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
     // Run many iterations to make tangible times more likely in small matrix cases (small being relative to the amount of possible threads).
+    printf("DIMENSIONS %d %d", xDim, yDim);
     for (int i = 0; i < totalIterations; i++) {
-        gpu_parallel_transpose_blocks <<<grid, threads >>> (devMatrixB, devMatrixA, n, m); // ignore "expected an expression" error if it appears. It is a false flag by intellisense.
+        naive_parallel_transposition <<<grid, threads >>> (devMatrixA, devMatrixB, m, n); // ignore "expected an expression" error if it appears. It is a false flag by intellisense.
     }
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -164,11 +144,14 @@ int main()
 
     // Copy result in from Device and print out statistics for the run.
     cudaMemcpy(matrixB, devMatrixB, mem_size, cudaMemcpyDeviceToHost);
+    formattedPrint(matrixB, elapsedTime, avgTime, totalIterations, n, m);
+    
     if (testTransposition(matrixA, matrixB, m, n)) {
         //formattedPrint(matrixB, elapsedTime, avgTime, totalIterations, n, m);
+        printf("SUCCESS!\n");
     }
     else {
-        printf("ERROR: Matrix transposition failed!");
+        printf("ERROR: Matrix transposition failed!\n");
     }
 
     /*ANY ADDITIONAL MEMORY MUST BE FREED BEFORE LEAVING*/
