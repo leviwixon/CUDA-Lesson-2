@@ -73,6 +73,7 @@ int main()
             return -1;
         }
 
+
         if (!m || !n) {
             printf("ERROR: Cannot have dimension of value 0! Please try again with a valid dimension (>0).\n");
             m = n = 0;  // set them all to 0, and try again.
@@ -117,10 +118,17 @@ int main()
 
     // Set dimensions for the device work done later
     double xDim, yDim;
-    dim3 threads(BLOCK_DIM, BLOCK_DIM);   
-    xDim = (m + (BLOCK_DIM - 1)) / BLOCK_DIM;   // Just round up on division.
-    yDim = (n + (BLOCK_DIM - 1)) / BLOCK_DIM;
-    dim3 grid(yDim, xDim, 1);
+
+    /* UNCOMMET FOR DYNAMIC BLOCK ASSIGNMENT*/
+    //dim3 threads(BLOCK_DIM, BLOCK_DIM);   
+    //xDim = (m + (BLOCK_DIM - 1)) / BLOCK_DIM;   // Just round up on division.
+    //yDim = (n + (BLOCK_DIM - 1)) / BLOCK_DIM;
+    //dim3 grid(yDim, xDim, 1);
+
+    /* Setup for GPU that can handle 1024 threads per block*/
+    dim3 threads(32, 32);
+    dim3 grid(1, 1);    // 1 block
+    /* RECOMMENT ABOVE BLOCK IF USING DYNAMIC BLOCK ASSIGNMENT*/
 
     // Cuda timing via events documented at https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#using-cuda-gpu-timers
     cudaEventCreate(&start);
