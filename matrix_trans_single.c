@@ -67,6 +67,7 @@ int transposeMatrix(int rows)
         for (j = 0; j < rows; j++)
         {
             transposedMatrix[i][j] = matrix[j][i];
+            sleep(transposedMatrix[i][j] / 100);          
         }
     }
 }
