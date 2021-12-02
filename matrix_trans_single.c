@@ -2,8 +2,8 @@
 #include <time.h>
 #include <stdlib.h>
 
-int matrix [10001][10001];
-int transposedMatrix [10001][10001];
+int matrix [32001][32001];
+int transposedMatrix [32001][32001];
 
 //function fills the matrix with the correct amount of random integers
 int fillMatrix(int rows, int seed)
@@ -89,9 +89,9 @@ int main()
     printf("----------------------------------------------\n");
     while (goodRows == 0)
     {
-        printf("Please enter the number of rows for the square matrix. (1-10000)\n");
+        printf("Please enter the number of rows for the square matrix. (1-32000)\n");
         scanf("%d", &rows);
-        if (rows > 0 && rows < 10001)
+        if (rows > 0 && rows < 32001)
         {
             goodRows = 1;
         }
