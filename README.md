@@ -1,5 +1,6 @@
 # CUDA-Lesson-2
 ## Why does this exist?
+Authors: Levi Wixon & Steven Clark
 This code is aimed at teaching CUDA, and provides a key which would be achievable to a new learner of CUDA (which means we DON'T use the most efficient coalesced transposition provided by the CUDA sample files). The key for matrix transposition currently does not function with small thread batches, and is instead is meant to display the power provided by CUDA. This is achieved by throwing a rediculous amount of blocks and threads at the problem, and is a relatively maintainable approach given that we will run out of memory on the heap well before we run out of scheduling space for threads (in most cases).
 ## CUDA version
 The following program was developed on CUDA 11.5 and with a NVIDA 1050 Ti (compute capability 6.1), and may not work with previous versions. It may also not be best optimized for any graphics card that has a compute capability of >6.1, and may have unforseen behaviour with compute capability <6.1. To check your compute capability, head to https://developer.nvidia.com/cuda-gpus and search for your NVIDIA card. For more detailed specifications to your specific scenario, you can also run CUDA's device query located in the CUDA sample files.
